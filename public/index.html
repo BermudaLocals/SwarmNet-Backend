@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ SwarmNet — Commander</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root{--gold:#FFD700;--gold2:#FFA500;--dark:#0a0a0a;--dark2:#111;--dark3:#1a1a1a;--dark4:#222;--green:#00ff88;--red:#ff4444;--blue:#4488ff;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Segoe UI',monospace;background:var(--dark);color:#eee;min-height:100vh;}
+  /* LOGIN */
+  #loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at center,#1a1500 0%,#0a0a0a 70%);}
+  .login-box{background:var(--dark2);border:1px solid var(--gold);border-radius:12px;padding:48px 40px;width:420px;text-align:center;box-shadow:0 0 60px rgba(255,215,0,0.15);}
+  .login-box h1{color:var(--gold);font-size:2rem;margin-bottom:4px;letter-spacing:3px;}  
+  .login-box .sub{color:#888;font-size:.8rem;margin-bottom:32px;letter-spacing:2px;}
+  .login-box input{width:100%;background:#0a0a0a;border:1px solid #333;border-radius:6px;padding:14px 16px;color:#eee;font-size:1rem;margin-bottom:16px;outline:none;transition:border .2s;}
+  .login-box input:focus{border-color:var(--gold);}
+  .login-box button{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;border:none;border-radius:6px;padding:14px;font-size:1rem;font-weight:700;cursor:pointer;letter-spacing:2px;transition:opacity .2s;}
+  .login-box button:hover{opacity:.85;}
+  .login-box .error{color:var(--red);font-size:.85rem;margin-top:12px;min-height:20px;}
+  .login-box .step-indicator{color:#555;font-size:.75rem;margin-bottom:20px;}
+  /* MAIN APP */
+  #app{display:none;}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--dark2);border-right:1px solid #222;padding:24px 0;z-index:100;}
+  .sidebar .logo{padding:0 20px 24px;border-bottom:1px solid #222;}
+  .sidebar .logo h2{color:var(--gold);font-size:1.1rem;letter-spacing:2px;}
+  .sidebar .logo p{color:#555;font-size:.7rem;margin-top:2px;}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:14px 20px;cursor:pointer;color:#888;font-size:.85rem;transition:all .2s;border-left:3px solid transparent;}
+  .nav-item:hover{color:#eee;background:var(--dark3);}
+  .nav-item.active{color:var(--gold);background:var(--dark3);border-left-color:var(--gold);}
+  .nav-item .icon{font-size:1.1rem;width:20px;text-align:center;}
+  .nav-item .badge{margin-left:auto;background:var(--red);color:#fff;border-radius:10px;padding:2px 7px;font-size:.7rem;}
+  .sidebar .logout{position:absolute;bottom:20px;left:0;right:0;padding:0 20px;}
+  .sidebar .logout button{width:100%;background:transparent;border:1px solid #333;color:#666;border-radius:6px;padding:10px;cursor:pointer;font-size:.8rem;}
+  .sidebar .logout button:hover{border-color:var(--red);color:var(--red);}
+  .main{margin-left:220px;padding:32px;min-height:100vh;}
+  .page{display:none;}
+  .page.active{display:block;}
+  .page-title{font-size:1.6rem;font-weight:700;color:var(--gold);margin-bottom:8px;}
+  .page-sub{color:#555;font-size:.85rem;margin-bottom:28px;}
+  /* CARDS */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px;}
+  .kpi-card{background:var(--dark2);border:1px solid #222;border-radius:10px;padding:20px;position:relative;overflow:hidden;}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--gold2));}
+  .kpi-card .label{color:#666;font-size:.75rem;letter-spacing:1px;margin-bottom:8px;}
+  .kpi-card .value{color:var(--gold);font-size:1.8rem;font-weight:700;}
+  .kpi-card .sub{color:#555;font-size:.75rem;margin-top:4px;}
+  /* TABLES */
+  .card{background:var(--dark2);border:1px solid #222;border-radius:10px;padding:24px;margin-bottom:20px;}
+  .card h3{color:#eee;font-size:1rem;margin-bottom:16px;}
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;color:#555;font-size:.75rem;letter-spacing:1px;padding:10px 12px;border-bottom:1px solid #222;}
+  td{padding:12px;border-bottom:1px solid #1a1a1a;font-size:.85rem;color:#ccc;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--dark3);}
+  .status-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;}
+  .status-active{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3);}
+  .status-idle{background:rgba(100,100,100,.1);color:#888;border:1px solid #333;}
+  .status-paused{background:rgba(255,165,0,.1);color:var(--gold2);border:1px solid rgba(255,165,0,.3);}
+  .status-new{background:rgba(68,136,255,.1);color:var(--blue);border:1px solid rgba(68,136,255,.3);}
+  /* SCORE BAR */
+  .score-bar{width:100%;height:6px;background:#222;border-radius:3px;overflow:hidden;}
+  .score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold),var(--green));}
+  /* BUTTONS */
+  .btn{border:none;border-radius:6px;padding:8px 16px;cursor:pointer;font-size:.8rem;font-weight:600;letter-spacing:1px;transition:opacity .2s;}
+  .btn:hover{opacity:.8;}
+  .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;}
+  .btn-red{background:rgba(255,68,68,.2);color:var(--red);border:1px solid rgba(255,68,68,.3);}
+  .btn-green{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.3);}
+  .btn-gray{background:#1a1a1a;color:#888;border:1px solid #333;}
+  /* CONSOLE */
+  .console-area{background:#050505;border:1px solid #222;border-radius:8px;padding:20px;font-family:monospace;height:360px;overflow-y:auto;margin-bottom:16px;}
+  .console-line{margin-bottom:8px;font-size:.85rem;line-height:1.5;}
+  .console-line.cmd{color:var(--gold);}
+  .console-line.res{color:var(--green);}
+  .console-line.sys{color:#555;}
+  .console-input-row{display:flex;gap:12px;}
+  .console-input-row input{flex:1;background:#050505;border:1px solid #333;border-radius:6px;padding:12px 16px;color:var(--gold);font-family:monospace;font-size:.9rem;outline:none;}
+  .console-input-row input:focus{border-color:var(--gold);}
+  /* INCOME STREAMS */
+  .streams-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px;}
+  .stream-card{background:var(--dark3);border:1px solid #222;border-radius:8px;padding:16px;}
+  .stream-card .stream-name{color:#eee;font-size:.9rem;font-weight:600;margin-bottom:4px;}
+  .stream-card .stream-amount{color:var(--gold);font-size:1.4rem;font-weight:700;}
+  .stream-card .stream-sub{color:#555;font-size:.75rem;margin-top:2px;}
+  /* LIVE INDICATOR */
+  .live-dot{display:inline-block;width:8px;height:8px;background:var(--green);border-radius:50%;margin-right:6px;animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+  /* MODAL */
+  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;align-items:center;justify-content:center;}
+  .modal.open{display:flex;}
+  .modal-box{background:var(--dark2);border:1px solid var(--gold);border-radius:12px;padding:32px;width:460px;}
+  .modal-box h3{color:var(--gold);margin-bottom:20px;}
+  .modal-box input,.modal-box select{width:100%;background:#0a0a0a;border:1px solid #333;border-radius:6px;padding:12px;color:#eee;margin-bottom:12px;outline:none;}
+  .modal-box input:focus,.modal-box select:focus{border-color:var(--gold);}
+  .modal-btns{display:flex;gap:12px;margin-top:8px;}
+  .modal-btns button{flex:1;}
+  /* HEADER */
+  .top-bar{display:flex;align-items:center;justify-content:between;margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid #1a1a1a;}
+  .top-bar .greeting{color:#555;font-size:.85rem;margin-left:auto;}
+  .top-bar .live-status{display:flex;align-items:center;color:var(--green);font-size:.8rem;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage">
+  <div class="login-box">
+    <h1>⚡ SWARMNET</h1>
+    <p class="sub">PRIVATE COMMANDER ACCESS</p>
+    <p class="step-indicator" id="stepIndicator">STEP 1 OF 2 — ACCESS KEY</p>
+    <input type="password" id="accessKeyInput" placeholder="Enter access key..." />
+    <div id="step2Fields" style="display:none">
+      <input type="password" id="verifyPhraseInput" placeholder="Enter verify phrase..." />
+    </div>
+    <button onclick="handleLogin()">AUTHENTICATE →</button>
+    <p class="error" id="loginError"></p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="logo">
+      <h2>⚡ SWARMNET</h2>
+      <p>NO FLUFF. MAX ROI.</p>
+    </div>
+    <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+      <span class="icon">📊</span> Command Center
+    </div>
+    <div class="nav-item" onclick="showPage('bots')" id="nav-bots">
+      <span class="icon">🤖</span> Bot Army
+    </div>
+    <div class="nav-item" onclick="showPage('intel')" id="nav-intel">
+      <span class="icon">🎯</span> Intel Feed
+      <span class="badge" id="intelBadge">0</span>
+    </div>
+    <div class="nav-item" onclick="showPage('income')" id="nav-income">
+      <span class="icon">💰</span> Income Tracker
+    </div>
+    <div class="nav-item" onclick="showPage('console')" id="nav-console">
+      <span class="icon">⚡</span> Agent Zero Console
+    </div>
+    <div class="logout">
+      <button onclick="logout()">⏻ LOGOUT</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- COMMAND CENTER -->
+    <div class="page active" id="page-dashboard">
+      <div class="top-bar">
+        <div>
+          <div class="page-title">Command Center</div>
+          <div class="page-sub"><span class="live-dot"></span><span class="live-status">LIVE — Real-time Empire Status</span></div>
+        </div>
+        <span class="greeting" id="currentTime"></span>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="label">REVENUE TODAY</div>
+          <div class="value" id="kpiToday">$0.00</div>
+          <div class="sub">Live updating</div>
+        </div>
+        <div class="kpi-card">
+          <div class="label">REVENUE THIS WEEK</div>
+          <div class="value" id="kpiWeek">$0.00</div>
+          <div class="sub">7-day total</div>
+        </div>
+        <div class="kpi-card">
+          <div class="label">REVENUE THIS MONTH</div>
+          <div class="value" id="kpiMonth">$0.00</div>
+          <div class="sub">Monthly projection</div>
+        </div>
+        <div class="kpi-card">
+          <div class="label">ACTIVE BOTS</div>
+          <div class="value" id="kpiActiveBots">0</div>
+          <div class="sub">Working 24/7</div>
+        </div>
+        <div class="kpi-card">
+          <div class="label">INTEL OPPORTUNITIES</div>
+          <div class="value" id="kpiIntel">0</div>
+          <div class="sub">New signals</div>
+        </div>
+        <div class="kpi-card">
+          <div class="label">TOP STREAM</div>
+          <div class="value" style="font-size:1rem;padding-top:8px" id="kpiTopStream">—</div>
+          <div class="sub">Highest earner</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>📡 Live Activity Feed</h3>
+        <div id="activityFeed" style="font-family:monospace;font-size:.82rem;color:#555;min-height:80px;">
+          <div class="console-line sys">[System] SwarmNet online — Commander authenticated</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOT ARMY -->
+    <div class="page" id="page-bots">
+      <div class="page-title">🤖 Bot Army</div>
+      <div class="page-sub">Deploy, manage and monitor your AI bots</div>
+      <div style="margin-bottom:20px">
+        <button class="btn btn-gold" onclick="openDeployModal()">+ DEPLOY NEW BOT</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>BOT NAME</th><th>TYPE</th><th>STATUS</th><th>EARNED TODAY</th><th>TOTAL EARNED</th><th>LAST ACTIVE</th><th>ACTIONS</th></tr>
+          </thead>
+          <tbody id="botsTable"><tr><td colspan="7" style="text-align:center;color:#555">Loading bots...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INTEL FEED -->
+    <div class="page" id="page-intel">
+      <div class="page-title">🎯 Intel Feed</div>
+      <div class="page-sub">Opportunities discovered by your bots — scored 1-100</div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>SCORE</th><th>TITLE</th><th>CATEGORY</th><th>STATUS</th><th>DISCOVERED</th><th>ACTION</th></tr>
+          </thead>
+          <tbody id="intelTable"><tr><td colspan="6" style="text-align:center;color:#555">Loading intel...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INCOME TRACKER -->
+    <div class="page" id="page-income">
+      <div class="page-title">💰 Income Tracker</div>
+      <div class="page-sub">Every revenue stream tracked in real-time</div>
+      <div class="streams-grid" id="streamsGrid"></div>
+      <div class="card">
+        <h3>Transaction Log</h3>
+        <table>
+          <thead><tr><th>STREAM</th><th>AMOUNT</th><th>DESCRIPTION</th><th>TIME</th></tr></thead>
+          <tbody id="incomeTable"><tr><td colspan="4" style="text-align:center;color:#555">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AGENT ZERO CONSOLE -->
+    <div class="page" id="page-console">
+      <div class="page-title">⚡ Agent Zero Console</div>
+      <div class="page-sub">Direct command interface to Agent Zero</div>
+      <div class="card">
+        <div class="console-area" id="consoleOutput">
+          <div class="console-line sys">[SwarmNet] Agent Zero console ready. Type a command below.</div>
+          <div class="console-line sys">[SwarmNet] Connected as Commander — AI Profit Hustle + Digital King</div>
+        </div>
+        <div class="console-input-row">
+          <input type="text" id="consoleInput" placeholder="> Type command for Agent Zero..." onkeydown="if(event.key==='Enter')sendCommand()" />
+          <button class="btn btn-gold" onclick="sendCommand()">SEND ⚡</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DEPLOY BOT MODAL -->
+<div class="modal" id="deployModal">
+  <div class="modal-box">
+    <h3>🤖 Deploy New Bot</h3>
+    <input type="text" id="botName" placeholder="Bot name (e.g. GigHunter-2)" />
+    <select id="botType">
+      <option value="gig_hunter">Gig Hunter — finds freelance income</option>
+      <option value="audit_sniper">Audit Sniper — DeFi vulnerability scanner</option>
+      <option value="content">Content Bot — AI influencer content</option>
+      <option value="lead_scout">Lead Scout — finds clients</option>
+      <option value="affiliate">Affiliate Bot — commission hunter</option>
+      <option value="digital_sales">Digital Sales Bot — Gumroad automation</option>
+      <option value="custom">Custom Bot</option>
+    </select>
+    <div class="modal-btns">
+      <button class="btn btn-gold" onclick="deployBot()">DEPLOY →</button>
+      <button class="btn btn-gray" onclick="closeModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let TOKEN = '';
+let socket = null;
+let step = 1;
+let accessKeyValue = '';
+
+// ─── AUTH ──────────────────────────────────────────────
+async function handleLogin() {
+  const err = document.getElementById('loginError');
+  err.textContent = '';
+  if (step === 1) {
+    accessKeyValue = document.getElementById('accessKeyInput').value.trim();
+    if (!accessKeyValue) { err.textContent = 'Enter access key'; return; }
+    const r = await fetch('/api/auth/step1', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ access_key: accessKeyValue }) });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Invalid access key'; return; }
+    step = 2;
+    document.getElementById('stepIndicator').textContent = 'STEP 2 OF 2 — VERIFY PHRASE';
+    document.getElementById('step2Fields').style.display = 'block';
+    document.getElementById('accessKeyInput').disabled = true;
+    document.getElementById('verifyPhraseInput').focus();
+  } else {
+    const phrase = document.getElementById('verifyPhraseInput').value.trim();
+    if (!phrase) { err.textContent = 'Enter verify phrase'; return; }
+    const r = await fetch('/api/auth/step2', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ access_key: accessKeyValue, verify_phrase: phrase }) });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Authentication failed'; return; }
+    TOKEN = d.token;
+    localStorage.setItem('swarmnet_token', TOKEN);
+    initApp();
+  }
+}
+
+function logout() {
+  TOKEN = '';
+  localStorage.removeItem('swarmnet_token');
+  if (socket) socket.disconnect();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginPage').style.display = 'flex';
+  step = 1;
+  document.getElementById('accessKeyInput').disabled = false;
+  document.getElementById('accessKeyInput').value = '';
+  document.getElementById('verifyPhraseInput').value = '';
+  document.getElementById('step2Fields').style.display = 'none';
+  document.getElementById('stepIndicator').textContent = 'STEP 1 OF 2 — ACCESS KEY';
+}
+
+function api(path, opts={}) {
+  return fetch(path, { ...opts, headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN, ...(opts.headers||{}) } }).then(r=>r.json());
+}
+
+async function initApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  connectSocket();
+  loadDashboard();
+  loadBots();
+  loadIntel();
+  loadIncome();
+  setInterval(updateClock, 1000);
+  updateClock();
+}
+
+function connectSocket() {
+  socket = io({ auth: { token: TOKEN } });
+  socket.on('kpi:update', d => {
+    document.getElementById('kpiToday').textContent = '$'+parseFloat(d.revenue_today).toFixed(2);
+    addActivity(`[Live] Revenue update: $${d.revenue_today} | Active bots: ${d.active_bots}`);
+  });
+  socket.on('bot:deployed', b => { addActivity(`[Bot] Deployed: ${b.name} (${b.type})`); loadBots(); });
+  socket.on('bot:updated', b => { addActivity(`[Bot] ${b.name} status → ${b.status}`); loadBots(); });
+  socket.on('bot:killed', d => { addActivity(`[Bot] Bot terminated: ${d.id}`); loadBots(); });
+  socket.on('intel:new', i => { addActivity(`[Intel] New signal: ${i.title} (Score: ${i.score})`); loadIntel(); });
+  socket.on('income:new', e => { addActivity(`[Income] +$${e.amount} — ${e.stream}: ${e.description}`); loadIncome(); });
+  socket.on('console:response', c => {
+    appendConsole(c.output, 'res');
+  });
+}
+
+function updateClock() {
+  document.getElementById('currentTime').textContent = new Date().toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+function addActivity(msg) {
+  const feed = document.getElementById('activityFeed');
+  const div = document.createElement('div');
+  div.className = 'console-line sys';
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+// ─── PAGES ─────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+}
+
+// ─── DASHBOARD ─────────────────────────────────────────
+async function loadDashboard() {
+  const d = await api('/api/dashboard');
+  document.getElementById('kpiToday').textContent = '$'+d.revenue.today;
+  document.getElementById('kpiWeek').textContent = '$'+d.revenue.week;
+  document.getElementById('kpiMonth').textContent = '$'+d.revenue.month;
+  document.getElementById('kpiActiveBots').textContent = d.bots.active;
+  document.getElementById('kpiIntel').textContent = d.intel_new;
+  document.getElementById('kpiTopStream').textContent = d.top_stream;
+  document.getElementById('intelBadge').textContent = d.intel_new;
+}
+
+// ─── BOTS ──────────────────────────────────────────────
+async function loadBots() {
+  const bots = await api('/api/bots');
+  const tbody = document.getElementById('botsTable');
+  tbody.innerHTML = bots.map(b => `
+    <tr>
+      <td><strong>${b.name}</strong></td>
+      <td><span style="color:#888">${b.type.replace(/_/g,' ')}</span></td>
+      <td><span class="status-badge status-${b.status}">${b.status.toUpperCase()}</span></td>
+      <td style="color:var(--gold)">$${parseFloat(b.income_today).toFixed(2)}</td>
+      <td style="color:var(--green)">$${parseFloat(b.income_total).toFixed(2)}</td>
+      <td style="color:#555;font-size:.75rem">${new Date(b.last_active).toLocaleTimeString()}</td>
+      <td>
+        ${b.status!=='active'?`<button class="btn btn-green" onclick="setBotStatus('${b.id}','active')" style="margin-right:6px">▶ Run</button>`:''}
+        ${b.status==='active'?`<button class="btn btn-gray" onclick="setBotStatus('${b.id}','paused')" style="margin-right:6px">⏸ Pause</button>`:''}
+        <button class="btn btn-red" onclick="killBot('${b.id}')">✕ Kill</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function setBotStatus(id, status) {
+  await api(`/api/bots/${id}`, { method:'PATCH', body: JSON.stringify({ status }) });
+  loadBots();
+}
+async function killBot(id) {
+  if (!confirm('Kill this bot?')) return;
+  await api(`/api/bots/${id}`, { method:'DELETE' });
+  loadBots();
+}
+function openDeployModal() { document.getElementById('deployModal').classList.add('open'); }
+function closeModal() { document.getElementById('deployModal').classList.remove('open'); }
+async function deployBot() {
+  const name = document.getElementById('botName').value.trim();
+  const type = document.getElementById('botType').value;
+  if (!name) { alert('Enter bot name'); return; }
+  await api('/api/bots', { method:'POST', body: JSON.stringify({ name, type }) });
+  closeModal();
+  document.getElementById('botName').value = '';
+  loadBots();
+}
+
+// ─── INTEL ─────────────────────────────────────────────
+async function loadIntel() {
+  const intel = await api('/api/intel');
+  const tbody = document.getElementById('intelTable');
+  const newCount = intel.filter(i=>i.status==='new').length;
+  document.getElementById('intelBadge').textContent = newCount;
+  tbody.innerHTML = intel.map(i => `
+    <tr>
+      <td>
+        <div style="color:var(--gold);font-weight:700;margin-bottom:4px">${i.score}</div>
+        <div class="score-bar"><div class="score-fill" style="width:${i.score}%"></div></div>
+      </td>
+      <td><strong>${i.title}</strong>${i.description?`<br><span style="color:#555;font-size:.75rem">${i.description}</span>`:''}</td>
+      <td><span style="color:#888">${i.category||'—'}</span></td>
+      <td><span class="status-badge status-${i.status}">${i.status.toUpperCase()}</span></td>
+      <td style="color:#555;font-size:.75rem">${new Date(i.created_at).toLocaleString()}</td>
+      <td>${i.status==='new'?`<button class="btn btn-gold" onclick="markIntel('${i.id}')">✓ Review</button>`:''}</td>
+    </tr>`).join('');
+}
+async function markIntel(id) {
+  await api(`/api/intel/${id}/status`, { method:'PATCH', body: JSON.stringify({ status:'reviewed' }) });
+  loadIntel();
+}
+
+// ─── INCOME ────────────────────────────────────────────
+async function loadIncome() {
+  const d = await api('/api/income');
+  // Stream cards
+  const streams = [
+    'AI Influencer Studio', 'NVME.live Coins', 'Agency Retainers',
+    'Affiliate Commissions', 'Lead Package Sales', 'Digital Products', 'Audit Armor'
+  ];
+  const streamData = {};
+  d.streams.forEach(s => { streamData[s.stream] = s; });
+  document.getElementById('streamsGrid').innerHTML = streams.map(s => {
+    const sd = streamData[s];
+    return `<div class="stream-card">
+      <div class="stream-name">${s}</div>
+      <div class="stream-amount">${sd?'$'+parseFloat(sd.total).toFixed(2):'$0.00'}</div>
+      <div class="stream-sub">${sd?sd.events.length+' transactions':'No transactions yet'}</div>
+    </div>`;
+  }).join('');
+  // Table
+  document.getElementById('incomeTable').innerHTML = d.events.slice().reverse().map(e => `
+    <tr>
+      <td><strong>${e.stream}</strong></td>
+      <td style="color:var(--gold);font-weight:700">+$${parseFloat(e.amount).toFixed(2)}</td>
+      <td style="color:#888">${e.description||'—'}</td>
+      <td style="color:#555;font-size:.75rem">${new Date(e.created_at).toLocaleString()}</td>
+    </tr>`).join('');
+}
+
+// ─── CONSOLE ───────────────────────────────────────────
+function appendConsole(text, type='res') {
+  const out = document.getElementById('consoleOutput');
+  const div = document.createElement('div');
+  div.className = `console-line ${type}`;
+  div.textContent = text;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+async function sendCommand() {
+  const input = document.getElementById('consoleInput');
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  appendConsole('> ' + cmd, 'cmd');
+  input.value = '';
+  await api('/api/console', { method:'POST', body: JSON.stringify({ command: cmd }) });
+}
+
+// Auto-login if token stored
+window.onload = () => {
+  const t = localStorage.getItem('swarmnet_token');
+  if (t) { TOKEN = t; initApp(); }
+};
+</script>
+</body>
+</html>

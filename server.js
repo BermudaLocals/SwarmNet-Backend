@@ -501,3 +501,4 @@ server.listen(PORT, async () => {
 ╚══════════════════════════════════════╝
   `);
 });
+app.get('/api/health', (req, res) => res.json({ status: 'online', service: 'SwarmNet' }));

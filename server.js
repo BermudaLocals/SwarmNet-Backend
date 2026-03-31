@@ -32,11 +32,11 @@ app.use(express.static('public'));
 
 // ── DATABASE ────────────────────────────────────────────────
 const db = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/swarmnet'
+  connectionString: process.env.DATABASE_URL,
 });
 
 // ── REDIS ───────────────────────────────────────────────────
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const redis = new Redis(process.env.REDIS_URL);
 
 // ── AUTH MIDDLEWARE ─────────────────────────────────────────
 const requireAuth = (req, res, next) => {
@@ -489,7 +489,21 @@ app.get('*', (req, res) => {
 // ── START ────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, async () => {
-  await initDB();
+  // Retry DB init up to 5 times (handles slow container startup)
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await initDB();
+      break;
+    } catch (err) {
+      console.error(`❌ DB init attempt ${attempt}/5 failed: ${err.message}`);
+      if (attempt < 5) {
+        console.log('⏳ Retrying in 3 seconds...');
+        await new Promise(r => setTimeout(r, 3000));
+      } else {
+        console.error('💀 All DB init attempts failed. Server running without DB.');
+      }
+    }
+  }
   console.log(`
 ╔══════════════════════════════════════╗
 ║        SWARMNET BACKEND ONLINE       ║

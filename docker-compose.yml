@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  swarmnet:
+    build: .
+    container_name: swarmnet-backend
+    ports:
+      - '3001:3001'
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://swarmnet:swarmnet_pass@swarmnet-postgres:5432/swarmnet
+      - REDIS_URL=redis://swarmnet-redis:6379
+      - JWT_SECRET=${JWT_SECRET:-empire-swarmnet-jwt-secret-2026}
+    depends_on:
+      swarmnet-postgres:
+        condition: service_healthy
+      swarmnet-redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - swarmnet-network
+
+  swarmnet-postgres:
+    image: postgres:15-alpine
+    container_name: swarmnet-db
+    volumes:
+      - swarmnet-pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: swarmnet
+      POSTGRES_USER: swarmnet
+      POSTGRES_PASSWORD: swarmnet_pass
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U swarmnet -d swarmnet']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - swarmnet-network
+
+  swarmnet-redis:
+    image: redis:7-alpine
+    container_name: swarmnet-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - swarmnet-redisdata:/data
+    ports:
+      - '6380:6379'
+    restart: unless-stopped
+    networks:
+      - swarmnet-network
+
+volumes:
+  swarmnet-pgdata:
+    driver: local
+  swarmnet-redisdata:
+    driver: local
+
+networks:
+  swarmnet-network:
+    driver: bridge
